@@ -1,13 +1,205 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <title>Express</title>
-  <link rel="stylesheet" href="/stylesheets/style.css">
+  <meta charset="UTF-8">
+  <title>test-task</title>
 </head>
-
 <body>
-  <h1>Express</h1>
-  <p>Welcome to Express</p>
+<div class="container">
+  <div class="header" id="header">
+    <h1>Demo test</h1>
+  </div>
+  <br>
+  <div class="main">
+    <div class="content" id="content"></div>
+    <button id="btn">start</button>
+  </div>
+  <div class="error" id="error" style="display : none; color : red"></div>
+</div>
 </body>
+<script src="scripts/api.js"></script>
 
+
+<script>
+  const answers = [];
+  let count = 0;
+  let username;
+  let questions;
+  let currentAnswer = 0;
+  let supervisor;
+  const api = new Api('https://localhost:3000');
+
+  const contentEl = document.getElementById('content');
+  const btn = document.getElementById('btn');
+
+
+  contentEl.innerHTML = '<p>welcome to demo test page</p>';
+  btn.addEventListener('click', loadQuestions);
+
+  api.login('student1', 'password')
+    .then((result) => {
+      username = result.username;
+      console.log('auth success ' + username);
+      return api.loadStartPage();
+    })
+    .then(result => {
+      const { message } = result;
+      contentEl.innerHTML = `<p>${message}, ${username} </p>`;
+      if(!getCookie('token')) return api.getToken()
+      else {
+        return {
+          token : getCookie('token')
+        }
+      }
+    })
+    .then(result=>{
+      const {token, provider, supervisor_url} =result;
+        supervisor = new Supervisor({url: supervisor_url});
+        return supervisor.init({
+          provider,
+          token,
+        })
+    })
+    .then(()=>{
+      return supervisor.start();
+    })
+    .catch(errorHandler);
+
+
+  function loadQuestions() {
+    console.log('load questions');
+    api.loadQuestions()
+      .then(result => {
+        const { test } = result;
+        console.log(result);
+        questions = test;
+        const question = questions[0];
+        contentEl.innerHTML = createForm(count++, question);
+        btn.innerText = 'next';
+        btn.removeEventListener('click', loadQuestions);
+        btn.addEventListener('click', submitAndGetNext);
+      })
+      .catch(errorHandler);
+  }
+
+  function submitAndGetNext() {
+    let answer = getAnswerFromRadios('answer');
+    answers.push(answer);
+    if (count + 1 < questions.length) {
+      let question = questions[count];
+      contentEl.innerHTML = createForm(count++, question);
+    } else {
+      let question = questions[count];
+      contentEl.innerHTML = createForm(count++, question);
+      btn.removeEventListener('click', submitAndGetNext);
+      btn.innerText = 'finish';
+      btn.addEventListener('click', finish);
+
+    }
+
+  }
+
+  function finish() {
+    let answer = getAnswerFromRadios('answer');
+    answers.push(answer);
+    btn.remove();
+    api.sendResults(answers)
+      .then(result => {
+        const { message } = result;
+        contentEl.innerHTML = `<p>${message}</p>`;
+      })
+      .catch(errorHandler);
+
+  }
+
+  function createForm(number, question) {
+    return `
+    <form id="form">
+            <p>${number + 1}. ${question.text}</p>
+            <div>
+              <input type="radio" id="r0"
+               name="answer" value=0 checked>
+              <label for="r0">${question.variants[0]}</label>
+              <input type="radio" id="r1"
+               name="answer" value=1 >
+              <label for="r1">${question.variants[1]}</label>
+              <input type="radio" id="r2"
+               name="answer" value=2 >
+              <label for="r2">${question.variants[2]}</label>
+              <input type="radio" id="r3"
+               name="answer" value=3 >
+              <label for="r3">${question.variants[3]}</label>
+            </div>
+          </form>
+    `;
+  }
+
+  function getAnswerFromRadios(name) {
+    let radios = document.getElementsByName(name);
+    for (let i = 0, length = radios.length; i < length; i++) {
+      if (radios[i].checked) {
+        return radios[i].value;
+      }
+    }
+  }
+
+  function getCookie(name) {
+    const cookie = " " + document.cookie;
+    const search = " " + name + "=";
+    let setStr = null;
+    let offset = 0;
+    let end = 0;
+    if (cookie.length > 0) {
+      offset = cookie.indexOf(search);
+      if (offset != -1) {
+        offset += search.length;
+        end = cookie.indexOf(";", offset)
+        if (end == -1) {
+          end = cookie.length;
+        }
+        setStr = unescape(cookie.substring(offset, end));
+      }
+    }
+    return(setStr);
+  }
+
+  function errorHandler(error) {
+    const { message } = error;
+    const errEl = document.getElementById('error');
+    errEl.style.display = 'block';
+    errEl.innerText = message;
+  }
+</script>
+<script src="https://demo.proctoring.online/sdk/supervisor.js"></script>
+<style>
+  .container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .content {
+    text-align: center
+  }
+
+  .header {
+    text-align: center;
+  }
+
+  @media (min-width: 700px) {
+    .main {
+      width: 50%;
+      margin: 0 auto;
+    }
+  }
+
+  .error {
+    text-align: center;
+  }
+
+  #btn {
+    float: right;
+    margin-right: 30px;
+  }
+
+</style>
 </html>
